@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: igniter-example-host
+  labels:
+    app.kubernetes.io/name: igniter
+    app.kubernetes.io/instance: example-host
+spec:
+  # KEDA owns this. 0 = power intent off, 1 = power intent on.
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: igniter
+      app.kubernetes.io/instance: example-host
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: igniter
+        app.kubernetes.io/instance: example-host
+    spec:
+      serviceAccountName: igniter
+      # Give drain plus graceful shutdown enough time before Kubernetes kills the pod.
+      terminationGracePeriodSeconds: 600
+      # Pin this pod to a node that never sleeps. Edit the label to match your cluster.
+      nodeSelector:
+        example.com/always-on: "true"
+      containers:
+        - name: igniter
+          image: ghcr.io/<you>/igniter:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            # Core identity and node lifecycle.
+            - name: IGNITER_HOST
+              value: "example-host"
+            - name: IGNITER_NODES
+              value: "example-node-1,example-node-2"
+            - name: IGNITER_DRAIN_TIMEOUT
+              value: "5m"
+            - name: IGNITER_BOOT_TIMEOUT
+              value: "12m"
+
+            # Scale-down safety: igniter checks this Deployment before powering off.
+            - name: IGNITER_DEPLOYMENT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: IGNITER_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+            # Driver: Wake-on-LAN on, SSH shutdown off.
+            - name: IGNITER_POWER
+              value: "wol"
+            - name: WOL_MAC
+              value: "REPLACE_WITH_TARGET_MAC"
+            - name: WOL_BROADCAST
+              value: "REPLACE_WITH_LAN_BROADCAST:9"
+            - name: SSH_ADDR
+              value: "REPLACE_WITH_HOST_OR_IP:22"
+            - name: SSH_USER
+              value: "root"
+            - name: SSH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: igniter-secrets
+                  key: SSH_PASSWORD
+                  optional: true
+            - name: SSH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: igniter-secrets
+                  key: SSH_KEY
+                  optional: true
+
+            # Alternative driver: IPMI. Set IGNITER_POWER=ipmi and uncomment.
+            # - name: IPMI_ADDR
+            #   value: "REPLACE_WITH_BMC_HOST_OR_IP"
+            # - name: IPMI_USER
+            #   value: "root"
+            # - name: IPMI_PASSWORD
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: igniter-secrets
+            #       key: IPMI_PASSWORD
+
+            # Alternative driver: Proxmox. Set IGNITER_POWER=proxmox and uncomment.
+            # - name: PVE_URL
+            #   value: "https://REPLACE_WITH_PVE_HOST:8006"
+            # - name: PVE_TOKEN_ID
+            #   value: "REPLACE_WITH_TOKEN_ID"
+            # - name: PVE_TOKEN_SECRET
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: igniter-secrets
+            #       key: PVE_TOKEN_SECRET
+            # - name: PVE_NODE
+            #   value: "REPLACE_WITH_PVE_NODE"
+            # - name: PVE_VMIDS
+            #   value: "REPLACE_WITH_VMID_LIST"

@@ -1,0 +1,13 @@
+# Local config — NEVER commit real credentials. Copy .env.example -> .env.
+.env
+*.env
+!.env.example
+
+# Build output (compiled binaries at the repo root — anchored so they don't
+# match the cmd/igniterctl/ source directory).
+/out/
+/igniter
+/igniterctl
+
+# Editor / OS
+.DS_Store

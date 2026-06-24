@@ -1,0 +1,30 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: igniter-example-host
+spec:
+  scaleTargetRef:
+    name: igniter-example-host
+  # Replica count is power intent: 0 = off, 1 = on.
+  minReplicaCount: 0
+  maxReplicaCount: 1
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+    # Daily on-window example. Edit timezone, start, and end for this host.
+    - type: cron
+      metadata:
+        timezone: Etc/UTC
+        start: "0 8 * * *"
+        end: "0 22 * * *"
+        desiredReplicas: "1"
+
+    # Demand-wake example. Edit serverAddress and query for your Prometheus.
+    # Keep threshold low when the query returns pending work for this host.
+    - type: prometheus
+      metadata:
+        serverAddress: "https://REPLACE_WITH_PROMETHEUS_URL"
+        metricName: "igniter_example_pending_pods"
+        threshold: "1"
+        query: |
+          REPLACE_WITH_PROMQL_QUERY_RETURNING_PENDING_WORK

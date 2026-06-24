@@ -1,0 +1,51 @@
+# NAMESPACE: the ClusterRole/ClusterRoleBinding below are cluster-scoped, but the
+# ServiceAccount is namespaced. Apply this file with `kubectl apply -n <ns>` and
+# set the SAME <ns> in the ClusterRoleBinding subject below — if they differ, the
+# binding points at a ServiceAccount that doesn't exist and grants nothing
+# (drain/cordon then fail at runtime with Forbidden). Examples below use `default`.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: igniter
+  namespace: default # must match the ClusterRoleBinding subject namespace
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: igniter-node-lifecycle
+rules:
+  # Scale-down safety: igniter reads its own Deployment's desired replicas.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get"]
+  # Node readiness checks plus cordon/uncordon.
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "patch"]
+  # kubectl drain discovers pods on the node before evicting them.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # kubectl drain evicts pods through the eviction subresource.
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+  # `kubectl drain --ignore-daemonsets` GETs each DaemonSet to confirm a pod is
+  # daemon-managed before skipping it. Every node runs DaemonSet pods (CNI,
+  # kube-proxy), so without this the GET is Forbidden and drain fails outright.
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: igniter-node-lifecycle
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: igniter-node-lifecycle
+subjects:
+  - kind: ServiceAccount
+    name: igniter
+    namespace: default # MUST match the namespace the ServiceAccount is applied in
