@@ -20,24 +20,56 @@ func kubectl(ctx context.Context, args ...string) (string, error) {
 	return string(out), nil
 }
 
-// WaitReady blocks until every node reports Ready (or ctx expires).
+// nodeReady reports whether one node currently reports Ready=True.
+func nodeReady(ctx context.Context, name string) bool {
+	out, err := kubectl(ctx, "get", "node", name,
+		"-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
+	return err == nil && strings.TrimSpace(out) == "True"
+}
+
+// classify partitions names into ready/notReady using check. The check is
+// injectable so the partition logic can be tested without a live cluster.
+func classify(ctx context.Context, names []string, check func(context.Context, string) bool) (ready, notReady []string) {
+	for _, n := range names {
+		if check(ctx, n) {
+			ready = append(ready, n)
+		} else {
+			notReady = append(notReady, n)
+		}
+	}
+	return ready, notReady
+}
+
+// WaitReady blocks until every node reports Ready (or ctx expires). Strict
+// all-or-nothing; prefer WaitReadyBestEffort for bring-up so one wedged node
+// can't fail the whole fleet.
 func WaitReady(ctx context.Context, names []string) error {
 	for {
-		allReady := true
-		for _, n := range names {
-			out, err := kubectl(ctx, "get", "node", n,
-				"-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
-			if err != nil || strings.TrimSpace(out) != "True" {
-				allReady = false
-				break
-			}
-		}
-		if allReady {
+		if _, notReady := classify(ctx, names, nodeReady); len(notReady) == 0 {
 			return nil
 		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-time.After(10 * time.Second):
+		}
+	}
+}
+
+// WaitReadyBestEffort waits until every node is Ready or ctx expires, then
+// reports which nodes reached Ready and which did not. Unlike WaitReady it
+// never fails outright on a partial result — the caller decides whether a
+// partial bring-up is acceptable, so a single wedged node can't hold the whole
+// fleet hostage (cordoned + unschedulable) until it recovers.
+func WaitReadyBestEffort(ctx context.Context, names []string) (ready, notReady []string) {
+	for {
+		ready, notReady = classify(ctx, names, nodeReady)
+		if len(notReady) == 0 {
+			return ready, notReady
+		}
+		select {
+		case <-ctx.Done():
+			return ready, notReady
 		case <-time.After(10 * time.Second):
 		}
 	}

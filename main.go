@@ -132,15 +132,25 @@ func ensureUp(ctx context.Context, c *config) error {
 	log.Printf("waiting for nodes %v (budget %s)", c.Nodes, c.BootTimeout)
 	wctx, cancel := context.WithTimeout(ctx, c.BootTimeout)
 	defer cancel()
-	if err := nodes.WaitReady(wctx, c.Nodes); err != nil {
-		return fmt.Errorf("nodes not ready: %w", err)
-	}
-	for _, n := range c.Nodes {
+	ready, notReady := nodes.WaitReadyBestEffort(wctx, c.Nodes)
+	// Uncordon every node that came up — even when some lagged. The old
+	// behaviour gated the uncordon on ALL nodes being Ready, so one wedged node
+	// left its healthy siblings cordoned (and their workloads unschedulable) and
+	// the pod crash-looped for as long as that node stayed down.
+	for _, n := range ready {
 		if err := nodes.Uncordon(ctx, n); err != nil {
 			log.Printf("uncordon %s: %v", n, err)
 		}
 	}
-	log.Printf("nodes ready + uncordoned")
+	if len(ready) == 0 {
+		return fmt.Errorf("no nodes became ready: %v", notReady)
+	}
+	if len(notReady) > 0 {
+		log.Printf("WARNING: proceeding with %d/%d nodes ready; still-down %v (healthy nodes uncordoned)",
+			len(ready), len(c.Nodes), notReady)
+	} else {
+		log.Printf("nodes ready + uncordoned")
+	}
 	return nil
 }
 
