@@ -13,8 +13,9 @@ sleeps. KEDA composes the intent upstream: a `cron` trigger for the daily
 window, a `prometheus` trigger (pending pods) for demand-wake. Example
 manifests live in [`deploy/`](deploy/).
 
-Power drivers: `ipmi` (BMC, graceful ACPI soft-off), `wol` (magic packet on +
-SSH shutdown off), `proxmox` (API token, per-VM start/shutdown). `igniterctl
+Power drivers: `ipmi` (BMC; ACPI soft-off, **verified**, with a hard power-down
+fallback if the host ignores the soft-off), `wol` (magic packet on + SSH
+shutdown off), `proxmox` (API token, per-VM start/shutdown). `igniterctl
 status|on|off` runs the same drivers by hand.
 
 ## Configure

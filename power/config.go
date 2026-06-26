@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // FromEnv builds the configured power driver from IGNITER_POWER and the
@@ -11,8 +12,10 @@ import (
 func FromEnv() (Driver, error) {
 	switch kind := envOr("IGNITER_POWER", ""); kind {
 	case "ipmi":
+		// 0 grace/poll => NewIPMI applies its defaults (single source of truth).
 		return NewIPMI(
-			envOr("IPMI_ADDR", ""), envOr("IPMI_USER", "root"), envOr("IPMI_PASSWORD", ""))
+			envOr("IPMI_ADDR", ""), envOr("IPMI_USER", "root"), envOr("IPMI_PASSWORD", ""),
+			envDur("IPMI_SOFT_GRACE", 0), envDur("IPMI_HARD_GRACE", 0), envDur("IPMI_POLL_INTERVAL", 0))
 	case "wol":
 		return NewWOL(
 			envOr("WOL_MAC", ""), envOr("WOL_BROADCAST", "255.255.255.255:9"),
@@ -29,6 +32,15 @@ func FromEnv() (Driver, error) {
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return def
+}
+
+func envDur(key string, def time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
 	}
 	return def
 }

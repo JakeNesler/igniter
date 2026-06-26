@@ -19,8 +19,10 @@ spec:
         app.kubernetes.io/instance: example-host
     spec:
       serviceAccountName: igniter
-      # Give drain plus graceful shutdown enough time before Kubernetes kills the pod.
-      terminationGracePeriodSeconds: 600
+      # Must exceed (IGNITER_DRAIN_TIMEOUT + ~2m) + IGNITER_POWEROFF_TIMEOUT so the
+      # drain AND the verified power-off (soft-off -> wait -> hard-off) both finish
+      # before Kubernetes SIGKILLs the pod.
+      terminationGracePeriodSeconds: 900
       # Pin this pod to a node that never sleeps. Edit the label to match your cluster.
       nodeSelector:
         example.com/always-on: "true"
@@ -38,6 +40,9 @@ spec:
               value: "5m"
             - name: IGNITER_BOOT_TIMEOUT
               value: "12m"
+            # Budget for the power-off (soft-off -> verify -> hard-off fallback).
+            - name: IGNITER_POWEROFF_TIMEOUT
+              value: "5m"
 
             # Scale-down safety: igniter checks this Deployment before powering off.
             - name: IGNITER_DEPLOYMENT
@@ -83,6 +88,16 @@ spec:
             #     secretKeyRef:
             #       name: igniter-secrets
             #       key: IPMI_PASSWORD
+            # Optional IPMI power-off tuning (defaults 3m / 90s / 15s): the driver
+            # sends an ACPI soft-off, waits IPMI_SOFT_GRACE for it to take effect,
+            # then escalates to a hard power-down (waiting IPMI_HARD_GRACE),
+            # polling power state every IPMI_POLL_INTERVAL.
+            # - name: IPMI_SOFT_GRACE
+            #   value: "3m"
+            # - name: IPMI_HARD_GRACE
+            #   value: "90s"
+            # - name: IPMI_POLL_INTERVAL
+            #   value: "15s"
 
             # Alternative driver: Proxmox. Set IGNITER_POWER=proxmox and uncomment.
             # - name: PVE_URL

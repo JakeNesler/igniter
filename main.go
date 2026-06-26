@@ -30,18 +30,20 @@ import (
 )
 
 type config struct {
-	HostName     string        // label for logs
-	Nodes        []string      // k8s node names this host carries
-	DrainTimeout time.Duration // per-node drain budget
-	BootTimeout  time.Duration // power-on -> all nodes Ready budget
-	Power        power.Driver
+	HostName        string        // label for logs
+	Nodes           []string      // k8s node names this host carries
+	DrainTimeout    time.Duration // per-node drain budget
+	BootTimeout     time.Duration // power-on -> all nodes Ready budget
+	PowerOffTimeout time.Duration // budget for the soft->verify->hard power-off
+	Power           power.Driver
 }
 
 func loadConfig() (*config, error) {
 	c := &config{
-		HostName:     envOr("IGNITER_HOST", ""),
-		DrainTimeout: envDur("IGNITER_DRAIN_TIMEOUT", 5*time.Minute),
-		BootTimeout:  envDur("IGNITER_BOOT_TIMEOUT", 12*time.Minute),
+		HostName:        envOr("IGNITER_HOST", ""),
+		DrainTimeout:    envDur("IGNITER_DRAIN_TIMEOUT", 5*time.Minute),
+		BootTimeout:     envDur("IGNITER_BOOT_TIMEOUT", 12*time.Minute),
+		PowerOffTimeout: envDur("IGNITER_POWEROFF_TIMEOUT", 5*time.Minute),
 	}
 	if c.HostName == "" {
 		return nil, fmt.Errorf("IGNITER_HOST is required")
@@ -90,10 +92,13 @@ func main() {
 				log.Printf("SIGTERM but Deployment still wants >=1 replica — pod replacement, NOT a scale-down; exiting WITHOUT touching power")
 				return
 			}
-			// Fresh context: the signal context is already cancelled.
-			down, cancel := context.WithTimeout(context.Background(), c.DrainTimeout+5*time.Minute)
+			// Fresh context for the drain phase: the signal context is already
+			// cancelled. Power-off gets its OWN budget inside windDown, so a slow
+			// (best-effort) drain cannot starve the actual shutdown. Keep
+			// drainBudget + PowerOffTimeout under terminationGracePeriodSeconds.
+			drainCtx, cancel := context.WithTimeout(context.Background(), c.DrainTimeout+2*time.Minute)
 			defer cancel()
-			if err := windDown(down, c); err != nil {
+			if err := windDown(drainCtx, c); err != nil {
 				log.Printf("wind-down error: %v", err)
 				os.Exit(1)
 			}
@@ -144,17 +149,24 @@ func ensureUp(ctx context.Context, c *config) error {
 	return nil
 }
 
-func windDown(ctx context.Context, c *config) error {
+func windDown(drainCtx context.Context, c *config) error {
 	for _, n := range c.Nodes {
 		log.Printf("cordon+drain %s", n)
-		if err := nodes.Drain(ctx, n, c.DrainTimeout); err != nil {
+		if err := nodes.Drain(drainCtx, n, c.DrainTimeout); err != nil {
 			// Drain best-effort: a stuck PDB must not leave the host on forever;
 			// the nightly window is the operator's explicit intent.
 			log.Printf("drain %s: %v (continuing)", n, err)
 		}
 	}
-	log.Printf("powering off (graceful)")
-	return c.Power.Off(ctx)
+	// Power-off gets a FRESH, dedicated budget — independent of however much of
+	// the drain budget was already burned — because the driver now does a
+	// soft-off, verifies it, and escalates to a hard power-off, which needs room
+	// to run. (The IPMI driver, notably, no longer trusts a fire-and-forget
+	// soft-off: it confirms the host actually went down.)
+	log.Printf("powering off (graceful soft-off, hard-off fallback if ignored)")
+	offCtx, cancel := context.WithTimeout(context.Background(), c.PowerOffTimeout)
+	defer cancel()
+	return c.Power.Off(offCtx)
 }
 
 func envOr(k, d string) string {
