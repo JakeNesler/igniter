@@ -13,10 +13,12 @@ sleeps. KEDA composes the intent upstream: a `cron` trigger for the daily
 window, a `prometheus` trigger (pending pods) for demand-wake. Example
 manifests live in [`deploy/`](deploy/).
 
-Power drivers: `ipmi` (BMC; ACPI soft-off, **verified**, with a hard power-down
-fallback if the host ignores the soft-off), `wol` (magic packet on + SSH
-shutdown off), `proxmox` (API token, per-VM start/shutdown). `igniterctl
-status|on|off` runs the same drivers by hand.
+Power drivers — each does a graceful shutdown, then **verifies the machine
+actually went down and escalates if it didn't** (so igniter never reports a
+power-off that didn't happen): `ipmi` (BMC; ACPI soft-off → hard power-down),
+`wol` (magic packet on; SSH `shutdown` off → best-effort forced power-off, no
+BMC to fall back on), `proxmox` (API token; per-VM `shutdown` → hard `stop`).
+`igniterctl status|on|off` runs the same drivers by hand.
 
 ## Configure
 

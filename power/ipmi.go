@@ -8,14 +8,6 @@ import (
 	"github.com/bougou/go-ipmi"
 )
 
-// Default timings for the soft -> verify -> hard power-off sequence. Override
-// with IPMI_SOFT_GRACE / IPMI_HARD_GRACE / IPMI_POLL_INTERVAL.
-const (
-	defaultSoftGrace = 3 * time.Minute
-	defaultHardGrace = 90 * time.Second
-	defaultPoll      = 15 * time.Second
-)
-
 // IPMI drives a BMC (e.g. Dell iDRAC) over lanplus. Off tries a graceful ACPI
 // soft-off first (so a Proxmox host stops its VMs cleanly), then VERIFIES the
 // host actually powered down and escalates to a hard power-down if it did not.

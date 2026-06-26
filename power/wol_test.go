@@ -67,7 +67,7 @@ func TestNewWOLValidationAndNormalization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wol, err := NewWOL(tt.mac, "255.255.255.255:9", tt.sshAddr, "root", "", "")
+			wol, err := NewWOL(tt.mac, "255.255.255.255:9", tt.sshAddr, "root", "", "", 0, 0, 0)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("NewWOL returned nil error")

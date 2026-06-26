@@ -19,11 +19,13 @@ func FromEnv() (Driver, error) {
 	case "wol":
 		return NewWOL(
 			envOr("WOL_MAC", ""), envOr("WOL_BROADCAST", "255.255.255.255:9"),
-			envOr("SSH_ADDR", ""), envOr("SSH_USER", "root"), envOr("SSH_PASSWORD", ""), envOr("SSH_KEY", ""))
+			envOr("SSH_ADDR", ""), envOr("SSH_USER", "root"), envOr("SSH_PASSWORD", ""), envOr("SSH_KEY", ""),
+			envDur("WOL_SOFT_GRACE", 0), envDur("WOL_HARD_GRACE", 0), envDur("WOL_POLL_INTERVAL", 0))
 	case "proxmox":
 		return NewProxmox(
 			envOr("PVE_URL", ""), envOr("PVE_TOKEN_ID", ""), envOr("PVE_TOKEN_SECRET", ""),
-			envOr("PVE_NODE", ""), strings.Split(envOr("PVE_VMIDS", ""), ","))
+			envOr("PVE_NODE", ""), strings.Split(envOr("PVE_VMIDS", ""), ","),
+			envDur("PVE_SOFT_GRACE", 0), envDur("PVE_HARD_GRACE", 0), envDur("PVE_POLL_INTERVAL", 0))
 	default:
 		return nil, fmt.Errorf("IGNITER_POWER must be ipmi|wol|proxmox (got %q)", kind)
 	}

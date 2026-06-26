@@ -9,6 +9,7 @@ func TestNewProxmoxCleansVMIDs(t *testing.T) {
 		"secret",
 		"node1",
 		[]string{" 100 ", "", " \t", "101"},
+		0, 0, 0,
 	)
 	if err != nil {
 		t.Fatalf("NewProxmox returned error: %v", err)
@@ -82,7 +83,7 @@ func TestNewProxmoxValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewProxmox(tt.url, tt.tokenID, tt.tokenSecret, tt.node, tt.vmids)
+			_, err := NewProxmox(tt.url, tt.tokenID, tt.tokenSecret, tt.node, tt.vmids, 0, 0, 0)
 			if err == nil {
 				t.Fatal("NewProxmox returned nil error")
 			}

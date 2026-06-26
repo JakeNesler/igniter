@@ -77,6 +77,16 @@ spec:
                   name: igniter-secrets
                   key: SSH_KEY
                   optional: true
+            # Optional WoL power-off tuning (defaults 3m / 90s / 15s): Off runs
+            # `shutdown -h now`, waits WOL_SOFT_GRACE for the host to go offline,
+            # then a best-effort forced power-off (waiting WOL_HARD_GRACE),
+            # polling reachability every WOL_POLL_INTERVAL.
+            # - name: WOL_SOFT_GRACE
+            #   value: "3m"
+            # - name: WOL_HARD_GRACE
+            #   value: "90s"
+            # - name: WOL_POLL_INTERVAL
+            #   value: "15s"
 
             # Alternative driver: IPMI. Set IGNITER_POWER=ipmi and uncomment.
             # - name: IPMI_ADDR
@@ -113,3 +123,12 @@ spec:
             #   value: "REPLACE_WITH_PVE_NODE"
             # - name: PVE_VMIDS
             #   value: "REPLACE_WITH_VMID_LIST"
+            # Optional Proxmox power-off tuning (defaults 3m / 90s / 15s): Off runs
+            # a graceful per-VM shutdown, waits PVE_SOFT_GRACE, then hard-stops any
+            # straggler (waiting PVE_HARD_GRACE), polling every PVE_POLL_INTERVAL.
+            # - name: PVE_SOFT_GRACE
+            #   value: "3m"
+            # - name: PVE_HARD_GRACE
+            #   value: "90s"
+            # - name: PVE_POLL_INTERVAL
+            #   value: "15s"
